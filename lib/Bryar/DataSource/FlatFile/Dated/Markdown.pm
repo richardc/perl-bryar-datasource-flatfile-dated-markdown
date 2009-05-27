@@ -1,49 +1,25 @@
 package Bryar::DataSource::FlatFile::Dated::Markdown;
 use strict;
 use warnings;
-use base qw( Bryar::DataSource::FlatFile );
+use base qw( Bryar::DataSource::FlatFile::Dated );
 use Text::Markdown;
 use Date::Parse qw( str2time );
-use File::Basename qw( dirname );
 our $VERSION = '1.0';
-
-# liberally ripped off from Bryar::DataSource::FlatFile::Dated
-*_read_comments = \&Bryar::DataSource::FlatFile::_read_comments; 
 
 sub make_document {
     my ($self, $file) = @_;
-    return unless $file;
-    open(my($in), $file) or return;
-    local $/ = "\n";
-    my $who = getpwuid((stat $file)[4]);
+    my $document = $self->SUPER::make_document( $file );
+    return unless $document;
 
-    $file =~ s/\.txt$//;
-    my $when  = <$in>;
-    $when = str2time( $when );
-    my $title = <$in>;
-    chomp $title;
-    local $/;
-    my $content = <$in>;
-    close $in;
+    # Do what we came for, invoke Markdown
+    # We are bad programmers, we're violating encapsulation of Bryar::Document
+    $document->{content} = Text::Markdown->new->markdown( $document->content );
 
-    $content = Text::Markdown->new->markdown( $content );
+    # this is probably the wrong place for this but ::Dated doesn't
+    # parse the timestamp to an epoch as the documentation suggests it would
+    $document->{epoch} = str2time( $document->epoch );
 
-    my $comments = [];
-    $comments = [_read_comments($file, $file.".comments") ]
-        if -e $file.".comments";
-
-    my $dir = dirname($file);
-    $dir =~ s{^\./?}{};
-    my $category = $dir || "main";
-    return Bryar::Document->new(
-        title    => $title,
-        content  => $content,
-        epoch    => $when,
-        author   => $who,
-        id       => $file,
-        category => $category,
-        comments => $comments
-    );
+    return $document;
 }
 
 1;
